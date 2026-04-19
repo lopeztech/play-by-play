@@ -39,6 +39,12 @@ interface RunningReplay {
 
 let currentReplay: RunningReplay | null = null;
 
+function q<T extends HTMLElement = HTMLElement>(sel: string): T {
+  const el = document.querySelector<T>(sel);
+  if (!el) throw new Error(`missing element ${sel}`);
+  return el;
+}
+
 async function startReplay(matchUrl: string): Promise<RunningReplay> {
   const res = await fetch(matchUrl);
   if (!res.ok) throw new Error(`Failed to load match (${res.status})`);
@@ -92,6 +98,40 @@ async function startReplay(matchUrl: string): Promise<RunningReplay> {
   const statusEl = document.querySelector<HTMLSpanElement>("#sb-status")!;
   const slowMoEl = document.querySelector<HTMLDivElement>("#slowmo-indicator")!;
 
+  // Stats panel elements
+  type CountKey = "tries" | "goals" | "breaks" | "kicks" | "pens" | "errors" | "sets";
+  const statEls: Record<CountKey, [HTMLElement, HTMLElement]> = {
+    tries: [q("#st-tries-h"), q("#st-tries-a")],
+    goals: [q("#st-goals-h"), q("#st-goals-a")],
+    breaks: [q("#st-breaks-h"), q("#st-breaks-a")],
+    kicks: [q("#st-kicks-h"), q("#st-kicks-a")],
+    pens: [q("#st-pens-h"), q("#st-pens-a")],
+    errors: [q("#st-errors-h"), q("#st-errors-a")],
+    sets: [q("#st-sets-h"), q("#st-sets-a")],
+  };
+  const possEls = {
+    home: q("#st-poss-h"),
+    away: q("#st-poss-a"),
+    bar: q("#st-poss-bar-h"),
+  };
+  const lastStatVal: Record<CountKey, [number, number]> = {
+    tries: [0, 0], goals: [0, 0], breaks: [0, 0], kicks: [0, 0],
+    pens: [0, 0], errors: [0, 0], sets: [0, 0],
+  };
+
+  function updateStat(key: CountKey, home: number, away: number) {
+    const [prevH, prevA] = lastStatVal[key];
+    const [elH, elA] = statEls[key];
+    if (home !== prevH) { elH.textContent = String(home); bump(elH); }
+    if (away !== prevA) { elA.textContent = String(away); bump(elA); }
+    lastStatVal[key] = [home, away];
+  }
+  function bump(el: HTMLElement) {
+    el.classList.remove("bump");
+    void el.offsetWidth;
+    el.classList.add("bump");
+  }
+
   homeNameEl.textContent = match.homeTeam.nickName;
   awayNameEl.textContent = match.awayTeam.nickName;
   homeLogoEl.src = `/logos/${homeKey}.svg`;
@@ -135,6 +175,20 @@ async function startReplay(matchUrl: string): Promise<RunningReplay> {
     awayPossEl.classList.toggle("active", poss === "away");
 
     slowMoEl.classList.toggle("show", replay.slowMo && replay.isPlaying);
+
+    const s = replay.stats;
+    updateStat("tries", s.home.tries, s.away.tries);
+    updateStat("goals", s.home.goals, s.away.goals);
+    updateStat("breaks", s.home.lineBreaks, s.away.lineBreaks);
+    updateStat("kicks", s.home.kicks, s.away.kicks);
+    updateStat("pens", s.home.penalties, s.away.penalties);
+    updateStat("errors", s.home.errors, s.away.errors);
+    updateStat("sets", s.home.setRestarts, s.away.setRestarts);
+
+    const { home: ph, away: pa } = s.possessionPct();
+    possEls.home.textContent = `${ph}%`;
+    possEls.away.textContent = `${pa}%`;
+    possEls.bar.style.width = `${ph}%`;
   };
 
   const onPlay = () => {

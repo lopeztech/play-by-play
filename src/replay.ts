@@ -5,6 +5,7 @@ import type { EffectSystem } from "./effects";
 import { Simulator, type Snapshot } from "./simulation";
 import { playerTarget } from "./formations";
 import { benchPosition } from "./bench";
+import { StatsTracker } from "./stats";
 
 const KEY_EVENTS = new Set(["Try", "Goal", "PenaltyShot", "LineBreak", "KickBomb", "LineDropout"]);
 const SLOW_MO_MS = 2500;
@@ -19,9 +20,11 @@ export class Replay {
   private sim: Simulator;
   private slowMoUntil = 0;
   private lastSnap: Snapshot | null = null;
+  private lastSnapGameSeconds = 0;
 
   scoreHome = 0;
   scoreAway = 0;
+  stats: StatsTracker;
 
   constructor(
     private match: MatchData,
@@ -30,6 +33,7 @@ export class Replay {
     private effects: EffectSystem,
   ) {
     this.sim = new Simulator(match);
+    this.stats = new StatsTracker(match.homeTeam.teamId);
   }
 
   get seconds() { return this.currentSeconds; }
@@ -57,12 +61,17 @@ export class Replay {
     this.scoreHome = 0;
     this.scoreAway = 0;
     this.slowMoUntil = 0;
+    this.stats.reset();
     this.effects.reset();
 
     for (const t of this.tokens.values()) {
       t.onField = t.player.number <= 13;
       t.highlight.visible = false;
     }
+
+    // Accumulate possession by walking each simulator snapshot bracket up to t
+    this.accumulatePossession(this.currentSeconds);
+
     while (
       this.cursor < this.match.timeline.length &&
       this.match.timeline[this.cursor].gameSeconds <= this.currentSeconds
@@ -73,6 +82,7 @@ export class Replay {
 
     const snap = this.sim.sample(this.currentSeconds);
     this.lastSnap = snap;
+    this.lastSnapGameSeconds = this.currentSeconds;
     this.ball.position.set(snap.ballX, snap.ballY + 0.3, snap.ballZ);
     for (const t of this.tokens.values()) {
       const target = t.onField
@@ -81,6 +91,21 @@ export class Replay {
       t.root.position.set(target.x, 0, target.z);
       t.lastX = target.x;
       t.lastZ = target.z;
+    }
+  }
+
+  // Walk simulator snapshots and add up possession time in each bracket so
+  // possession % is correct after a scrub rather than drifting from zero.
+  private accumulatePossession(untilSeconds: number) {
+    const snaps = this.sim.snapshots;
+    for (let i = 0; i < snaps.length - 1; i++) {
+      const a = snaps[i];
+      const b = snaps[i + 1];
+      const end = Math.min(b.gameSeconds, untilSeconds);
+      const span = end - a.gameSeconds;
+      if (span <= 0) break;
+      this.stats.tickPossession(span, a.possession);
+      if (b.gameSeconds > untilSeconds) break;
     }
   }
 
@@ -103,7 +128,14 @@ export class Replay {
     }
 
     const snap = this.sim.sample(this.currentSeconds);
+    // Accumulate possession time using the previous snapshot's state for the
+    // span of game-seconds that just elapsed.
+    if (this.lastSnap) {
+      const gameDt = this.currentSeconds - this.lastSnapGameSeconds;
+      if (gameDt > 0) this.stats.tickPossession(gameDt, this.lastSnap.possession);
+    }
     this.lastSnap = snap;
+    this.lastSnapGameSeconds = this.currentSeconds;
     this.ball.position.set(snap.ballX, snap.ballY + 0.3, snap.ballZ);
 
     const follow = 1 - Math.exp(-dt * 3.5);
@@ -125,6 +157,8 @@ export class Replay {
   private apply(e: TimelineEvent, silent: boolean) {
     if (typeof e.homeScore === "number") this.scoreHome = e.homeScore;
     if (typeof e.awayScore === "number") this.scoreAway = e.awayScore;
+
+    this.stats.applyEvent(e);
 
     if (e.type === "Interchange") {
       if (e.playerId) {
