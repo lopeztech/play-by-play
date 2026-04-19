@@ -18,6 +18,7 @@ export interface PlayerToken {
   walkPhase: number;
   lastX: number;
   lastZ: number;
+  onField: boolean;
 }
 
 // Shared geometry — each player shares these to keep GPU cost low (~26 players
@@ -120,7 +121,8 @@ export async function spawnPlayers(
     const jerseyTex = await buildJerseyTexture(pal, player.number, `/logos/${themeKey}.svg`);
     const { group, torsoMat, leftArm, rightArm, leftLeg, rightLeg } = buildHumanoid(jerseyTex, pal);
 
-    group.visible = !!player.isOnField;
+    // Always rendered now — off-field players stand on the bench instead of
+    // being hidden. onField flag governs where they target each frame.
     scene.add(group);
 
     const ring = new THREE.Mesh(
@@ -152,6 +154,7 @@ export async function spawnPlayers(
       walkPhase: 0,
       lastX: 0,
       lastZ: 0,
+      onField: player.number <= 13,
     });
   };
 

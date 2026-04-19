@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { buildField } from "./field";
 import { spawnPlayers } from "./players";
 import { createBall } from "./ball";
+import { buildBenches } from "./bench";
 import { Replay, formatClock } from "./replay";
 import { EffectSystem } from "./effects";
 import type { MatchData } from "./types";
@@ -25,7 +26,7 @@ function matchStatus(t: number, totalSeconds: number, matchState: string): strin
 
 function pulse(el: HTMLElement) {
   el.classList.remove("pulse");
-  void el.offsetWidth; // force reflow so animation re-runs
+  void el.offsetWidth;
   el.classList.add("pulse");
 }
 
@@ -59,11 +60,12 @@ async function main() {
   scene.add(sun);
 
   buildField(scene);
+  buildBenches(scene, match);
   const tokens = await spawnPlayers(scene, match);
   const ball = createBall(scene);
 
-  const bannerLayer = document.querySelector<HTMLDivElement>("#event-banners")!;
-  const effects = new EffectSystem(scene, bannerLayer);
+  const banner = document.querySelector<HTMLDivElement>("#event-banner-main")!;
+  const effects = new EffectSystem(scene, banner);
 
   // Scoreboard wiring
   const homeKey = match.homeTeam.theme?.key ?? "home";
@@ -74,8 +76,11 @@ async function main() {
   const awayLogoEl = document.querySelector<HTMLImageElement>("#sb-away-logo")!;
   const homeScoreEl = document.querySelector<HTMLSpanElement>("#sb-home-score")!;
   const awayScoreEl = document.querySelector<HTMLSpanElement>("#sb-away-score")!;
+  const homePossEl = document.querySelector<HTMLSpanElement>("#sb-home-poss")!;
+  const awayPossEl = document.querySelector<HTMLSpanElement>("#sb-away-poss")!;
   const clockEl = document.querySelector<HTMLSpanElement>("#sb-clock")!;
   const statusEl = document.querySelector<HTMLSpanElement>("#sb-status")!;
+  const slowMoEl = document.querySelector<HTMLDivElement>("#slowmo-indicator")!;
 
   homeNameEl.textContent = match.homeTeam.nickName;
   awayNameEl.textContent = match.awayTeam.nickName;
@@ -109,6 +114,12 @@ async function main() {
     clockEl.textContent = formatClock(replay.seconds);
     statusEl.textContent = matchStatus(replay.seconds, replay.totalSeconds, match.matchState);
     scrubber.value = String(Math.floor(replay.seconds));
+
+    const poss = replay.currentSnap?.possession ?? null;
+    homePossEl.classList.toggle("active", poss === "home");
+    awayPossEl.classList.toggle("active", poss === "away");
+
+    slowMoEl.classList.toggle("show", replay.slowMo && replay.isPlaying);
   };
 
   playBtn.addEventListener("click", () => {

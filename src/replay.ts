@@ -2,12 +2,14 @@ import * as THREE from "three";
 import type { MatchData, TimelineEvent } from "./types";
 import { animateToken, type PlayerToken } from "./players";
 import type { EffectSystem } from "./effects";
-import { Simulator } from "./simulation";
+import { Simulator, type Snapshot } from "./simulation";
 import { playerTarget } from "./formations";
+import { benchPosition } from "./bench";
 
-// Drives the clock, fires timeline events into EffectSystem, and every frame
-// samples the Simulator to place the ball and compute each on-field player's
-// target position. Player motion is smoothed by an exponential follow.
+const KEY_EVENTS = new Set(["Try", "Goal", "PenaltyShot", "LineBreak", "KickBomb", "LineDropout"]);
+const SLOW_MO_MS = 2500;
+const SLOW_MO_SCALE = 3;
+
 export class Replay {
   private currentSeconds = 0;
   private cursor = 0;
@@ -15,6 +17,8 @@ export class Replay {
   private lastFrame = 0;
   private timeScale = 30;
   private sim: Simulator;
+  private slowMoUntil = 0;
+  private lastSnap: Snapshot | null = null;
 
   scoreHome = 0;
   scoreAway = 0;
@@ -30,6 +34,8 @@ export class Replay {
 
   get seconds() { return this.currentSeconds; }
   get isPlaying() { return this.playing; }
+  get currentSnap() { return this.lastSnap; }
+  get slowMo() { return performance.now() < this.slowMoUntil; }
   get totalSeconds() {
     const last = this.match.timeline.at(-1);
     return last ? last.gameSeconds + 10 : 4800;
@@ -50,11 +56,11 @@ export class Replay {
     this.cursor = 0;
     this.scoreHome = 0;
     this.scoreAway = 0;
+    this.slowMoUntil = 0;
     this.effects.reset();
 
-    // Rebuild interchange state and roster visibility
     for (const t of this.tokens.values()) {
-      t.root.visible = !!t.player.isOnField;
+      t.onField = t.player.number <= 13;
       t.highlight.visible = false;
     }
     while (
@@ -65,12 +71,13 @@ export class Replay {
       this.cursor++;
     }
 
-    // Snap player positions & ball to the simulated state immediately.
     const snap = this.sim.sample(this.currentSeconds);
+    this.lastSnap = snap;
     this.ball.position.set(snap.ballX, snap.ballY + 0.3, snap.ballZ);
     for (const t of this.tokens.values()) {
-      if (!t.root.visible) continue;
-      const target = playerTarget(t.player.number, t.side, snap);
+      const target = t.onField
+        ? playerTarget(t.player.number, t.side, snap)
+        : benchPosition(t.side, t.player.number);
       t.root.position.set(target.x, 0, target.z);
       t.lastX = target.x;
       t.lastZ = target.z;
@@ -81,8 +88,9 @@ export class Replay {
     if (this.playing) {
       const elapsed = (now - this.lastFrame) / 1000;
       this.lastFrame = now;
+      const scale = now < this.slowMoUntil ? Math.min(this.timeScale, SLOW_MO_SCALE) : this.timeScale;
       this.currentSeconds = Math.min(
-        this.currentSeconds + elapsed * this.timeScale,
+        this.currentSeconds + elapsed * scale,
         this.totalSeconds,
       );
     }
@@ -95,17 +103,20 @@ export class Replay {
     }
 
     const snap = this.sim.sample(this.currentSeconds);
+    this.lastSnap = snap;
     this.ball.position.set(snap.ballX, snap.ballY + 0.3, snap.ballZ);
 
-    // Smooth follow — exponential toward target. Feels natural at any time scale.
     const follow = 1 - Math.exp(-dt * 3.5);
     for (const t of this.tokens.values()) {
-      if (!t.root.visible) continue;
-      const target = playerTarget(t.player.number, t.side, snap);
+      const target = t.onField
+        ? playerTarget(t.player.number, t.side, snap)
+        : benchPosition(t.side, t.player.number);
       const pos = t.root.position;
       pos.x += (target.x - pos.x) * follow;
       pos.z += (target.z - pos.z) * follow;
-      animateToken(t, dt, snap.ballX, snap.ballZ);
+      const faceX = t.onField ? snap.ballX : pos.x;
+      const faceZ = t.onField ? snap.ballZ : 0; // bench players face the field
+      animateToken(t, dt, faceX, faceZ);
     }
 
     this.effects.update(dt);
@@ -118,15 +129,20 @@ export class Replay {
     if (e.type === "Interchange") {
       if (e.playerId) {
         const on = this.tokens.get(e.playerId);
-        if (on) on.root.visible = true;
+        if (on) on.onField = true;
       }
       if (e.offPlayerId) {
         const off = this.tokens.get(e.offPlayerId);
-        if (off) off.root.visible = false;
+        if (off) off.onField = false;
       }
     }
 
-    if (!silent) this.effects.fire(e, this.tokens);
+    if (!silent) {
+      this.effects.fire(e, this.tokens);
+      if (KEY_EVENTS.has(e.type)) {
+        this.slowMoUntil = performance.now() + SLOW_MO_MS;
+      }
+    }
   }
 }
 
