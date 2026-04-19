@@ -28,9 +28,102 @@ html, body, #app {
   display: block;
 }
 
+/* ---------- Scoreboard ---------- */
+
+#scoreboard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  gap: 28px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  font-family: system-ui, sans-serif;
+  user-select: none;
+}
+
+.sb-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.sb-home { justify-content: flex-end; text-align: right; }
+.sb-away { justify-content: flex-start; text-align: left; }
+
+.sb-name {
+  font-size: 22px;
+  font-weight: 500;
+  color: #1a1a1a;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.sb-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sb-score {
+  font-size: 44px;
+  font-weight: 800;
+  min-width: 70px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  color: #1a1a1a;
+  transition: color 0.4s ease;
+}
+
+@keyframes sb-score-pulse {
+  0%   { transform: scale(1);   color: #1a1a1a; }
+  25%  { transform: scale(1.35); color: #1b9e4b; }
+  60%  { transform: scale(1.15); color: #1b9e4b; }
+  100% { transform: scale(1);   color: #1a1a1a; }
+}
+
+.sb-score.pulse {
+  animation: sb-score-pulse 1s ease-out;
+}
+
+.sb-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 130px;
+  color: #666;
+  text-align: center;
+  line-height: 1.1;
+}
+
+#sb-clock {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1a1a1a;
+}
+
+#sb-status {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  color: #777;
+}
+
+/* ---------- Event banners ---------- */
+
 #event-banners {
   position: absolute;
-  top: 16px;
+  top: 100px;
   right: 16px;
   width: 320px;
   display: flex;
@@ -86,17 +179,12 @@ html, body, #app {
   opacity: 0.85;
 }
 
+/* ---------- HUD ---------- */
+
 #hud {
   padding: 12px 16px;
   background: #11162a;
   border-top: 1px solid #1f2747;
-  display: grid;
-  gap: 8px;
-}
-
-#scoreboard {
-  font-size: 18px;
-  font-weight: 600;
 }
 
 #controls {
@@ -118,13 +206,6 @@ html, body, #app {
 #controls button:hover { background: #4b5bc4; }
 
 #scrubber { flex: 1; }
-
-#clock {
-  font-variant-numeric: tabular-nums;
-  min-width: 52px;
-  text-align: right;
-  font-weight: 600;
-}
 
 #speed {
   background: #1f2747;

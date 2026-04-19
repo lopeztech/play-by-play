@@ -10,14 +10,28 @@
     <div id="app">
       <div id="stage">
         <canvas id="field"></canvas>
+        <div id="scoreboard">
+          <div class="sb-team sb-home">
+            <span class="sb-name" id="sb-home-name"></span>
+            <img class="sb-logo" id="sb-home-logo" alt="" />
+            <span class="sb-score" id="sb-home-score">0</span>
+          </div>
+          <div class="sb-status">
+            <span id="sb-clock">00:00</span>
+            <span id="sb-status">KICK OFF</span>
+          </div>
+          <div class="sb-team sb-away">
+            <span class="sb-score" id="sb-away-score">0</span>
+            <img class="sb-logo" id="sb-away-logo" alt="" />
+            <span class="sb-name" id="sb-away-name"></span>
+          </div>
+        </div>
         <div id="event-banners"></div>
       </div>
       <div id="hud">
-        <div id="scoreboard"></div>
         <div id="controls">
           <button id="play">Play</button>
           <input id="scrubber" type="range" min="0" max="4800" step="1" value="0" />
-          <span id="clock">00:00</span>
           <select id="speed">
             <option value="10">10×</option>
             <option value="30" selected>30×</option>

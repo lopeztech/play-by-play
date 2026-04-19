@@ -12,6 +12,23 @@ async function loadMatch(): Promise<MatchData> {
   return res.json();
 }
 
+function matchStatus(t: number, totalSeconds: number, matchState: string): string {
+  const HALF = 40 * 60;
+  const FULL = 80 * 60;
+  if (t < 3) return "KICK OFF";
+  if (t < HALF) return "1ST HALF";
+  if (t < HALF + 60) return "HALF TIME";
+  if (t < FULL) return "2ND HALF";
+  if (t >= totalSeconds - 5 && matchState === "FullTime") return "FULL TIME";
+  return "FULL TIME";
+}
+
+function pulse(el: HTMLElement) {
+  el.classList.remove("pulse");
+  void el.offsetWidth; // force reflow so animation re-runs
+  el.classList.add("pulse");
+}
+
 async function main() {
   const match = await loadMatch();
 
@@ -48,8 +65,25 @@ async function main() {
   const bannerLayer = document.querySelector<HTMLDivElement>("#event-banners")!;
   const effects = new EffectSystem(scene, bannerLayer);
 
-  const scoreboard = document.querySelector<HTMLDivElement>("#scoreboard")!;
-  const clockEl = document.querySelector<HTMLSpanElement>("#clock")!;
+  // Scoreboard wiring
+  const homeKey = match.homeTeam.theme?.key ?? "home";
+  const awayKey = match.awayTeam.theme?.key ?? "away";
+  const homeNameEl = document.querySelector<HTMLSpanElement>("#sb-home-name")!;
+  const awayNameEl = document.querySelector<HTMLSpanElement>("#sb-away-name")!;
+  const homeLogoEl = document.querySelector<HTMLImageElement>("#sb-home-logo")!;
+  const awayLogoEl = document.querySelector<HTMLImageElement>("#sb-away-logo")!;
+  const homeScoreEl = document.querySelector<HTMLSpanElement>("#sb-home-score")!;
+  const awayScoreEl = document.querySelector<HTMLSpanElement>("#sb-away-score")!;
+  const clockEl = document.querySelector<HTMLSpanElement>("#sb-clock")!;
+  const statusEl = document.querySelector<HTMLSpanElement>("#sb-status")!;
+
+  homeNameEl.textContent = match.homeTeam.nickName;
+  awayNameEl.textContent = match.awayTeam.nickName;
+  homeLogoEl.src = `/logos/${homeKey}.svg`;
+  homeLogoEl.alt = match.homeTeam.name;
+  awayLogoEl.src = `/logos/${awayKey}.svg`;
+  awayLogoEl.alt = match.awayTeam.name;
+
   const playBtn = document.querySelector<HTMLButtonElement>("#play")!;
   const scrubber = document.querySelector<HTMLInputElement>("#scrubber")!;
   const speedSelect = document.querySelector<HTMLSelectElement>("#speed")!;
@@ -58,10 +92,22 @@ async function main() {
   scrubber.max = String(Math.floor(replay.totalSeconds));
   replay.seek(0);
 
+  let lastHome = -1;
+  let lastAway = -1;
+
   const render = () => {
-    scoreboard.textContent =
-      `${match.homeTeam.nickName} ${replay.scoreHome} — ${replay.scoreAway} ${match.awayTeam.nickName}`;
+    if (replay.scoreHome !== lastHome) {
+      homeScoreEl.textContent = String(replay.scoreHome);
+      if (lastHome !== -1 && replay.scoreHome > lastHome) pulse(homeScoreEl);
+      lastHome = replay.scoreHome;
+    }
+    if (replay.scoreAway !== lastAway) {
+      awayScoreEl.textContent = String(replay.scoreAway);
+      if (lastAway !== -1 && replay.scoreAway > lastAway) pulse(awayScoreEl);
+      lastAway = replay.scoreAway;
+    }
     clockEl.textContent = formatClock(replay.seconds);
+    statusEl.textContent = matchStatus(replay.seconds, replay.totalSeconds, match.matchState);
     scrubber.value = String(Math.floor(replay.seconds));
   };
 

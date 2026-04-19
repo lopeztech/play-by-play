@@ -46,6 +46,7 @@ export interface TeamTheme {
 
 export interface Team {
   nickName: string;
+  name: string;
   teamId: number;
   score: number;
   players: Player[];
