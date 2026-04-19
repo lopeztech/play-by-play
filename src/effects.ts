@@ -54,15 +54,19 @@ export class EffectSystem {
     const playerName = token
       ? `${token.player.firstName} ${token.player.lastName}`
       : "";
-    const team = token?.player ? "" : ""; // team shown via colour
+    const logoImg = token
+      ? `<img class="event-banner__logo" src="/logos/${token.themeKey}.svg" alt="${token.teamName}" />`
+      : "";
+    const teamLabel = token ? ` · ${token.teamName}` : "";
 
     this.banner.style.background = meta.color;
     this.banner.innerHTML = `
       <span class="event-banner__clock">${mins}:${secs}</span>
+      ${logoImg}
       <span class="event-banner__icon">${meta.icon}</span>
       <div class="event-banner__body">
         <div class="event-banner__title">${meta.label}</div>
-        <div class="event-banner__desc">${playerName ? `${playerName} · ` : ""}${event.title}${team}</div>
+        <div class="event-banner__desc">${playerName ? `${playerName}${teamLabel}` : event.title}</div>
       </div>
     `;
 

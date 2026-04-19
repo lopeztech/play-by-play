@@ -8,41 +8,45 @@
   </head>
   <body>
     <div id="app">
-      <div id="stage">
-        <canvas id="field"></canvas>
-        <div id="scoreboard">
-          <div class="sb-team sb-home">
-            <span class="sb-name" id="sb-home-name"></span>
-            <span class="sb-possession" id="sb-home-poss" title="Possession"></span>
-            <img class="sb-logo" id="sb-home-logo" alt="" />
-            <span class="sb-score" id="sb-home-score">0</span>
+      <div id="selection-view"></div>
+      <div id="replay-view" style="display:none">
+        <div id="stage">
+          <canvas id="field"></canvas>
+          <div id="scoreboard">
+            <div class="sb-team sb-home">
+              <span class="sb-name" id="sb-home-name"></span>
+              <span class="sb-possession" id="sb-home-poss" title="Possession"></span>
+              <img class="sb-logo" id="sb-home-logo" alt="" />
+              <span class="sb-score" id="sb-home-score">0</span>
+            </div>
+            <div class="sb-status">
+              <span id="sb-clock">00:00</span>
+              <span id="sb-status">KICK OFF</span>
+            </div>
+            <div class="sb-team sb-away">
+              <span class="sb-score" id="sb-away-score">0</span>
+              <img class="sb-logo" id="sb-away-logo" alt="" />
+              <span class="sb-possession" id="sb-away-poss" title="Possession"></span>
+              <span class="sb-name" id="sb-away-name"></span>
+            </div>
           </div>
-          <div class="sb-status">
-            <span id="sb-clock">00:00</span>
-            <span id="sb-status">KICK OFF</span>
-          </div>
-          <div class="sb-team sb-away">
-            <span class="sb-score" id="sb-away-score">0</span>
-            <img class="sb-logo" id="sb-away-logo" alt="" />
-            <span class="sb-possession" id="sb-away-poss" title="Possession"></span>
-            <span class="sb-name" id="sb-away-name"></span>
-          </div>
+          <div id="slowmo-indicator">SLOW MO</div>
         </div>
-        <div id="slowmo-indicator">SLOW MO</div>
-      </div>
-      <div id="event-strip">
-        <div id="event-banner-main"></div>
-      </div>
-      <div id="hud">
-        <div id="controls">
-          <button id="play">Play</button>
-          <input id="scrubber" type="range" min="0" max="4800" step="1" value="0" />
-          <select id="speed">
-            <option value="10">10×</option>
-            <option value="30" selected>30×</option>
-            <option value="60">60×</option>
-            <option value="120">120×</option>
-          </select>
+        <div id="event-strip">
+          <div id="event-banner-main"></div>
+        </div>
+        <div id="hud">
+          <div id="controls">
+            <button id="back-btn" title="Back to round selection">←</button>
+            <button id="play">Play</button>
+            <input id="scrubber" type="range" min="0" max="4800" step="1" value="0" />
+            <select id="speed">
+              <option value="10">10×</option>
+              <option value="30" selected>30×</option>
+              <option value="60">60×</option>
+              <option value="120">120×</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

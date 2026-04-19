@@ -5,12 +5,15 @@ import { createBall } from "./ball";
 import { buildBenches } from "./bench";
 import { Replay, formatClock } from "./replay";
 import { EffectSystem } from "./effects";
+import { renderSelection } from "./selection";
 import type { MatchData } from "./types";
 
-async function loadMatch(): Promise<MatchData> {
-  const res = await fetch("/match.json");
-  if (!res.ok) throw new Error(`Failed to load match.json: ${res.status}`);
-  return res.json();
+const selectionView = document.querySelector<HTMLDivElement>("#selection-view")!;
+const replayView = document.querySelector<HTMLDivElement>("#replay-view")!;
+
+function showView(which: "selection" | "replay") {
+  selectionView.style.display = which === "selection" ? "block" : "none";
+  replayView.style.display = which === "replay" ? "grid" : "none";
 }
 
 function matchStatus(t: number, totalSeconds: number, matchState: string): string {
@@ -30,8 +33,16 @@ function pulse(el: HTMLElement) {
   el.classList.add("pulse");
 }
 
-async function main() {
-  const match = await loadMatch();
+interface RunningReplay {
+  dispose: () => void;
+}
+
+let currentReplay: RunningReplay | null = null;
+
+async function startReplay(matchUrl: string): Promise<RunningReplay> {
+  const res = await fetch(matchUrl);
+  if (!res.ok) throw new Error(`Failed to load match (${res.status})`);
+  const match: MatchData = await res.json();
 
   const canvas = document.querySelector<HTMLCanvasElement>("#field")!;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -67,7 +78,6 @@ async function main() {
   const banner = document.querySelector<HTMLDivElement>("#event-banner-main")!;
   const effects = new EffectSystem(scene, banner);
 
-  // Scoreboard wiring
   const homeKey = match.homeTeam.theme?.key ?? "home";
   const awayKey = match.awayTeam.theme?.key ?? "away";
   const homeNameEl = document.querySelector<HTMLSpanElement>("#sb-home-name")!;
@@ -93,9 +103,14 @@ async function main() {
   const scrubber = document.querySelector<HTMLInputElement>("#scrubber")!;
   const speedSelect = document.querySelector<HTMLSelectElement>("#speed")!;
 
+  // Reset scrubber + scores on entering replay
   const replay = new Replay(match, tokens, ball, effects);
   scrubber.max = String(Math.floor(replay.totalSeconds));
+  scrubber.value = "0";
   replay.seek(0);
+  playBtn.textContent = "Play";
+  homeScoreEl.textContent = "0";
+  awayScoreEl.textContent = "0";
 
   let lastHome = -1;
   let lastAway = -1;
@@ -122,7 +137,7 @@ async function main() {
     slowMoEl.classList.toggle("show", replay.slowMo && replay.isPlaying);
   };
 
-  playBtn.addEventListener("click", () => {
+  const onPlay = () => {
     if (replay.isPlaying) {
       replay.pause();
       playBtn.textContent = "Play";
@@ -130,9 +145,13 @@ async function main() {
       replay.play();
       playBtn.textContent = "Pause";
     }
-  });
-  scrubber.addEventListener("input", () => replay.seek(Number(scrubber.value)));
-  speedSelect.addEventListener("change", () => replay.setTimeScale(Number(speedSelect.value)));
+  };
+  const onScrub = () => replay.seek(Number(scrubber.value));
+  const onSpeed = () => replay.setTimeScale(Number(speedSelect.value));
+
+  playBtn.addEventListener("click", onPlay);
+  scrubber.addEventListener("input", onScrub);
+  speedSelect.addEventListener("change", onSpeed);
 
   const resize = () => {
     const { clientWidth: w, clientHeight: h } = canvas;
@@ -151,9 +170,53 @@ async function main() {
     render();
     renderer.render(scene, camera);
   });
+
+  return {
+    dispose: () => {
+      renderer.setAnimationLoop(null);
+      window.removeEventListener("resize", resize);
+      playBtn.removeEventListener("click", onPlay);
+      scrubber.removeEventListener("input", onScrub);
+      speedSelect.removeEventListener("change", onSpeed);
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const m of mats) m.dispose();
+        }
+      });
+      renderer.dispose();
+      effects.reset();
+    },
+  };
 }
 
-main().catch((err) => {
-  console.error(err);
-  document.body.textContent = `Error: ${err.message}`;
+async function route() {
+  const hash = location.hash.replace(/^#\/?/, "");
+  if (currentReplay) {
+    currentReplay.dispose();
+    currentReplay = null;
+  }
+  if (hash.startsWith("match/")) {
+    const slug = hash.slice("match/".length);
+    showView("replay");
+    try {
+      currentReplay = await startReplay(`/nrl-api/draw/nrl-premiership/2026/${slug}/data`);
+    } catch (err) {
+      console.error(err);
+      showView("selection");
+      alert(`Failed to load match: ${(err as Error).message}\n\nMake sure the Vite dev server is running (it proxies /nrl-api to nrl.com).`);
+      location.hash = "";
+    }
+  } else {
+    showView("selection");
+    await renderSelection(selectionView);
+  }
+}
+
+document.querySelector<HTMLButtonElement>("#back-btn")?.addEventListener("click", () => {
+  location.hash = "";
 });
+
+window.addEventListener("hashchange", route);
+route();

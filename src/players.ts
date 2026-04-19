@@ -7,6 +7,8 @@ export interface PlayerToken {
   playerId: number;
   side: Side;
   teamId: number;
+  themeKey: string;
+  teamName: string;
   player: Player;
   root: THREE.Group;
   torsoMaterial: THREE.MeshStandardMaterial;
@@ -116,7 +118,13 @@ export async function spawnPlayers(
 ): Promise<Map<number, PlayerToken>> {
   const tokens = new Map<number, PlayerToken>();
 
-  const make = async (player: Player, side: Side, teamId: number, themeKey: string) => {
+  const make = async (
+    player: Player,
+    side: Side,
+    teamId: number,
+    themeKey: string,
+    teamName: string,
+  ) => {
     const pal = palette(themeKey);
     const jerseyTex = await buildJerseyTexture(pal, player.number, `/logos/${themeKey}.svg`);
     const { group, torsoMat, leftArm, rightArm, leftLeg, rightLeg } = buildHumanoid(jerseyTex, pal);
@@ -143,6 +151,8 @@ export async function spawnPlayers(
       playerId: player.playerId,
       side,
       teamId,
+      themeKey,
+      teamName,
       player,
       root: group,
       torsoMaterial: torsoMat,
@@ -162,10 +172,10 @@ export async function spawnPlayers(
   const awayKey = match.awayTeam.theme?.key ?? "away";
   await Promise.all([
     ...match.homeTeam.players.map((p) =>
-      make(p, "home", match.homeTeam.teamId, homeKey),
+      make(p, "home", match.homeTeam.teamId, homeKey, match.homeTeam.nickName),
     ),
     ...match.awayTeam.players.map((p) =>
-      make(p, "away", match.awayTeam.teamId, awayKey),
+      make(p, "away", match.awayTeam.teamId, awayKey, match.awayTeam.nickName),
     ),
   ]);
   return tokens;
