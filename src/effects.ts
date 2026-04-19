@@ -3,43 +3,21 @@ import type { TimelineEvent } from "./types";
 import type { PlayerToken } from "./players";
 import { FIELD } from "./field";
 
-// Visual overlay system. For each fired timeline event we spawn a short-lived
-// effect (banner, highlight ring, try-line flash, ball arc) and tick it via
-// update(). Anything past its lifespan is removed.
+// Overlay effects tied to timeline events. Player motion and ball flight are
+// owned by the Simulator; this file handles the "tell" layer only — banners,
+// a highlight ring under the involved player, and a try-line flash.
 export class EffectSystem {
   private effects: Effect[] = [];
-  private bannerLayer: HTMLDivElement;
 
-  constructor(private scene: THREE.Scene, bannerLayer: HTMLDivElement) {
-    this.bannerLayer = bannerLayer;
-  }
+  constructor(private scene: THREE.Scene, private bannerLayer: HTMLDivElement) {}
 
   fire(event: TimelineEvent, tokens: Map<number, PlayerToken>) {
     const meta = EVENT_META[event.type] ?? DEFAULT_META;
     const token = event.playerId ? tokens.get(event.playerId) : undefined;
 
     this.showBanner(event, meta);
-
-    if (token) {
-      this.highlightToken(token, meta.color);
-    }
-
-    switch (event.type) {
-      case "Try":
-        if (token) this.tryFlash(token, meta.color);
-        break;
-      case "Goal":
-      case "PenaltyShot":
-        if (token) this.goalArc(token, true);
-        break;
-      case "GoalMissed":
-        if (token) this.goalArc(token, false);
-        break;
-      case "KickBomb":
-      case "LineDropout":
-        if (token) this.kickArc(token);
-        break;
-    }
+    if (token) this.pulseRing(token, meta.color);
+    if (event.type === "Try" && token) this.tryLineFlash(token, meta.color);
   }
 
   update(dt: number) {
@@ -74,7 +52,6 @@ export class EffectSystem {
       <span class="event-banner__desc">${event.title}</span>
     `;
     this.bannerLayer.prepend(banner);
-    // Keep last 6
     while (this.bannerLayer.children.length > 6) {
       this.bannerLayer.lastElementChild?.remove();
     }
@@ -82,14 +59,13 @@ export class EffectSystem {
     setTimeout(() => banner.remove(), 5000);
   }
 
-  private highlightToken(token: PlayerToken, hex: string) {
-    const color = new THREE.Color(hex);
+  private pulseRing(token: PlayerToken, hex: string) {
     const mat = token.highlight.material as THREE.MeshBasicMaterial;
-    mat.color.copy(color);
+    mat.color.set(hex);
+    mat.opacity = 0.8;
     token.highlight.visible = true;
-    token.highlight.position.set(token.sprite.position.x, 0.02, token.sprite.position.z);
     const life = 2.5;
-    this.push({
+    this.effects.push({
       age: 0,
       life,
       tick: (age) => {
@@ -102,32 +78,29 @@ export class EffectSystem {
     });
   }
 
-  private tryFlash(token: PlayerToken, hex: string) {
-    const tryLineX = token.side === "home" ? -FIELD.playLength / 2 : FIELD.playLength / 2;
+  private tryLineFlash(token: PlayerToken, hex: string) {
+    const tryLineX = token.side === "home" ? FIELD.playLength / 2 : -FIELD.playLength / 2;
     const plane = new THREE.Mesh(
       new THREE.PlaneGeometry(FIELD.inGoal, FIELD.width),
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(hex),
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.55,
+        depthWrite: false,
       }),
     );
     plane.rotation.x = -Math.PI / 2;
-    plane.position.set(tryLineX + (token.side === "home" ? -FIELD.inGoal / 2 : FIELD.inGoal / 2), 0.03, 0);
+    const inGoalCentre = tryLineX + (token.side === "home" ? FIELD.inGoal / 2 : -FIELD.inGoal / 2);
+    plane.position.set(inGoalCentre, 0.03, 0);
     this.scene.add(plane);
 
-    // Move token toward the try line
-    const target = new THREE.Vector3(tryLineX, token.sprite.position.y, token.sprite.position.z);
-    const start = token.sprite.position.clone();
-
     const life = 2.0;
-    this.push({
+    this.effects.push({
       age: 0,
       life,
       tick: (age) => {
-        const t = Math.min(age / life, 1);
-        token.sprite.position.lerpVectors(start, target, t);
-        (plane.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - t);
+        const t = age / life;
+        (plane.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t);
       },
       dispose: () => {
         this.scene.remove(plane);
@@ -136,48 +109,6 @@ export class EffectSystem {
       },
     });
   }
-
-  private goalArc(token: PlayerToken, made: boolean) {
-    const postX = token.side === "home" ? -FIELD.playLength / 2 : FIELD.playLength / 2;
-    const start = new THREE.Vector3(token.sprite.position.x, 0.5, token.sprite.position.z);
-    const end = new THREE.Vector3(postX, 3, made ? 0 : (token.side === "home" ? -5 : 5));
-    this.ballArc(start, end, 12, 1.8);
-  }
-
-  private kickArc(token: PlayerToken) {
-    const forward = token.side === "home" ? 1 : -1;
-    const start = new THREE.Vector3(token.sprite.position.x, 0.5, token.sprite.position.z);
-    const end = new THREE.Vector3(token.sprite.position.x + forward * 30, 0.5, token.sprite.position.z);
-    this.ballArc(start, end, 18, 1.8);
-  }
-
-  private ballArc(start: THREE.Vector3, end: THREE.Vector3, peakY: number, life: number) {
-    const ball = new THREE.Mesh(
-      new THREE.SphereGeometry(0.4, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0xdfb46a }),
-    );
-    ball.position.copy(start);
-    this.scene.add(ball);
-
-    this.push({
-      age: 0,
-      life,
-      tick: (age) => {
-        const t = Math.min(age / life, 1);
-        const x = THREE.MathUtils.lerp(start.x, end.x, t);
-        const z = THREE.MathUtils.lerp(start.z, end.z, t);
-        const y = THREE.MathUtils.lerp(start.y, end.y, t) + Math.sin(Math.PI * t) * peakY;
-        ball.position.set(x, y, z);
-      },
-      dispose: () => {
-        this.scene.remove(ball);
-        ball.geometry.dispose();
-        (ball.material as THREE.Material).dispose();
-      },
-    });
-  }
-
-  private push(eff: Effect) { this.effects.push(eff); }
 }
 
 interface Effect {
