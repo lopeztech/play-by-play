@@ -1,46 +1,65 @@
 import * as THREE from "three";
 
-// Small billboarded pill that sits at the player's feet and shows their
-// number + last name. Rendered on top of other geometry (depthTest off) so
-// bench players don't get occluded by the dugout.
+// Billboarded pill at the player's feet showing number + last name. Drawn at
+// high canvas resolution and sprite-scaled large enough to read from the
+// default camera distance.
 export function buildNameplate(
   number: number,
   firstName: string,
   lastName: string,
 ): THREE.Sprite {
-  const w = 256;
-  const h = 64;
+  const w = 512;
+  const h = 128;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
 
-  // Dark rounded pill background
-  ctx.fillStyle = "rgba(10, 15, 30, 0.88)";
-  roundedRect(ctx, 2, 4, w - 4, h - 8, 26);
+  // Dark rounded pill
+  ctx.fillStyle = "rgba(8, 12, 26, 0.92)";
+  roundedRect(ctx, 4, 8, w - 8, h - 16, 52);
   ctx.fill();
 
-  // Number chip on the left
+  // Thin highlight border
+  ctx.strokeStyle = "rgba(255, 200, 61, 0.85)";
+  ctx.lineWidth = 3;
+  roundedRect(ctx, 4, 8, w - 8, h - 16, 52);
+  ctx.stroke();
+
+  // Number chip
   ctx.fillStyle = "#ffc83d";
-  roundedRect(ctx, 8, 10, 52, h - 20, 16);
+  roundedRect(ctx, 16, 20, 96, h - 40, 32);
   ctx.fill();
 
-  ctx.fillStyle = "#1a1a1a";
-  ctx.font = "bold 26px system-ui, sans-serif";
+  ctx.fillStyle = "#141414";
+  ctx.font = "bold 60px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(String(number), 34, h / 2);
+  ctx.fillText(String(number), 64, h / 2 + 2);
 
-  // Name on the right
+  // Name
   const initial = firstName.charAt(0).toUpperCase();
+  const label = `${initial}. ${lastName}`.toUpperCase();
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 26px system-ui, sans-serif";
+  ctx.font = "bold 44px system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(`${initial}. ${lastName}`.toUpperCase(), 72, h / 2);
+  // Compress text horizontally if it overflows
+  const maxTextWidth = w - 140;
+  const measured = ctx.measureText(label);
+  if (measured.width > maxTextWidth) {
+    const scale = maxTextWidth / measured.width;
+    ctx.save();
+    ctx.translate(128, h / 2);
+    ctx.scale(scale, 1);
+    ctx.fillText(label, 0, 2);
+    ctx.restore();
+  } else {
+    ctx.fillText(label, 128, h / 2 + 2);
+  }
 
   const tex = new THREE.CanvasTexture(canvas);
-  tex.anisotropy = 4;
+  tex.anisotropy = 8;
 
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({
@@ -51,11 +70,11 @@ export function buildNameplate(
     }),
   );
   sprite.renderOrder = 10;
-  // Aspect 4:1. Scaled further by the parent player group (PLAYER_SCALE).
-  sprite.scale.set(1.3, 0.33, 1);
-  // Place slightly above the grass at the player's feet so it reads as a
-  // ground-level nameplate rather than floating over the head.
-  sprite.position.set(0, 0.1, 0);
+  // 4:1 aspect. Parent group is scaled by PLAYER_SCALE (2×), so these local
+  // values produce ~4m-wide nameplates — big enough to read from the default
+  // camera position without covering neighbouring players at the halfway.
+  sprite.scale.set(2.2, 0.55, 1);
+  sprite.position.set(0, 0.35, 0);
   return sprite;
 }
 
