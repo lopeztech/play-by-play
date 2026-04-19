@@ -40,8 +40,11 @@ const GEOM = {
 const SKIN_MAT = new THREE.MeshStandardMaterial({ color: 0xc89b7b });
 const BOOT_MAT = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
 
+const PLAYER_SCALE = 2.0;
+
 function buildHumanoid(jerseyTex: THREE.CanvasTexture, pal: TeamPalette) {
   const group = new THREE.Group();
+  group.scale.setScalar(PLAYER_SCALE);
 
   const torsoMat = new THREE.MeshStandardMaterial({
     map: jerseyTex,

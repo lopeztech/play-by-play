@@ -59,9 +59,11 @@ async function startReplay(matchUrl: string): Promise<RunningReplay> {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b1020);
 
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
-  camera.position.set(0, 65, 90);
-  camera.lookAt(0, 0, 0);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
+  const cameraOffset = new THREE.Vector3(0, 38, 58);
+  const cameraTarget = new THREE.Vector3(0, 0, 0);
+  camera.position.copy(cameraOffset);
+  camera.lookAt(cameraTarget);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.55));
   const sun = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -222,6 +224,17 @@ async function startReplay(matchUrl: string): Promise<RunningReplay> {
     prev = now;
     replay.tick(now, dt);
     render();
+
+    // Gently pan the camera along X to follow the ball, keeping Z/height fixed.
+    const snap = replay.currentSnap;
+    if (snap) {
+      const desiredX = THREE.MathUtils.clamp(snap.ballX, -35, 35);
+      const follow = 1 - Math.exp(-dt * 1.1);
+      cameraTarget.x += (desiredX - cameraTarget.x) * follow;
+      camera.position.x = cameraTarget.x + cameraOffset.x;
+      camera.lookAt(cameraTarget);
+    }
+
     renderer.render(scene, camera);
   });
 
