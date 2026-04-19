@@ -39,11 +39,17 @@ export interface Player {
   headImage?: string;
 }
 
+export interface TeamTheme {
+  key: string;
+  logos?: Record<string, string>;
+}
+
 export interface Team {
   nickName: string;
   teamId: number;
   score: number;
   players: Player[];
+  theme?: TeamTheme;
 }
 
 export interface MatchData {

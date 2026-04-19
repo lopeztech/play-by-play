@@ -1,7 +1,8 @@
 import * as THREE from "three";
-import { buildField, FIELD } from "./field";
+import { buildField } from "./field";
 import { spawnPlayers } from "./players";
 import { Replay, formatClock } from "./replay";
+import { EffectSystem } from "./effects";
 import type { MatchData } from "./types";
 
 async function loadMatch(): Promise<MatchData> {
@@ -24,20 +25,25 @@ async function main() {
   camera.position.set(0, 80, 90);
   camera.lookAt(0, 0, 0);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const sun = new THREE.DirectionalLight(0xffffff, 1.0);
   sun.position.set(60, 100, 40);
   scene.add(sun);
 
   buildField(scene);
-  const tokens = spawnPlayers(scene, match);
+  const tokens = await spawnPlayers(scene, match);
 
-  // HUD elements
+  const bannerLayer = document.querySelector<HTMLDivElement>("#event-banners")!;
+  const effects = new EffectSystem(scene, bannerLayer);
+
   const scoreboard = document.querySelector<HTMLDivElement>("#scoreboard")!;
-  const eventLog = document.querySelector<HTMLDivElement>("#event-log")!;
   const clockEl = document.querySelector<HTMLSpanElement>("#clock")!;
   const playBtn = document.querySelector<HTMLButtonElement>("#play")!;
   const scrubber = document.querySelector<HTMLInputElement>("#scrubber")!;
+  const speedSelect = document.querySelector<HTMLSelectElement>("#speed")!;
+
+  const replay = new Replay(match, tokens, effects);
+  scrubber.max = String(Math.floor(replay.totalSeconds));
 
   const render = () => {
     scoreboard.textContent =
@@ -45,12 +51,6 @@ async function main() {
     clockEl.textContent = formatClock(replay.seconds);
     scrubber.value = String(Math.floor(replay.seconds));
   };
-
-  const replay = new Replay(match, tokens, (e, clock) => {
-    eventLog.textContent = `[${clock}] ${e.type} — ${e.title}`;
-  });
-
-  scrubber.max = String(Math.floor(replay.totalSeconds));
 
   playBtn.addEventListener("click", () => {
     if (replay.isPlaying) {
@@ -66,6 +66,10 @@ async function main() {
     replay.seek(Number(scrubber.value));
   });
 
+  speedSelect.addEventListener("change", () => {
+    replay.setTimeScale(Number(speedSelect.value));
+  });
+
   const resize = () => {
     const { clientWidth: w, clientHeight: h } = canvas;
     renderer.setSize(w, h, false);
@@ -75,14 +79,14 @@ async function main() {
   resize();
   window.addEventListener("resize", resize);
 
+  let prev = performance.now();
   renderer.setAnimationLoop((now) => {
-    replay.tick(now);
+    const dt = (now - prev) / 1000;
+    prev = now;
+    replay.tick(now, dt);
     render();
     renderer.render(scene, camera);
   });
-
-  // Silence unused warning — FIELD is re-exported for consumers extending the scene.
-  void FIELD;
 }
 
 main().catch((err) => {

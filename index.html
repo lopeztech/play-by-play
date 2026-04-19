@@ -8,14 +8,22 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="field"></canvas>
+      <div id="stage">
+        <canvas id="field"></canvas>
+        <div id="event-banners"></div>
+      </div>
       <div id="hud">
         <div id="scoreboard"></div>
-        <div id="event-log"></div>
         <div id="controls">
           <button id="play">Play</button>
           <input id="scrubber" type="range" min="0" max="4800" step="1" value="0" />
           <span id="clock">00:00</span>
+          <select id="speed">
+            <option value="10">10×</option>
+            <option value="30" selected>30×</option>
+            <option value="60">60×</option>
+            <option value="120">120×</option>
+          </select>
         </div>
       </div>
     </div>
